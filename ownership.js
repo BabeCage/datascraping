@@ -49,12 +49,13 @@ function getDailyFantasyLinks() {
             var tasks = dailyFantasyLinks.map(function (link) {
                 return getDKLinks(link.href, link.title);
             });
-            Promise.all(tasks).then(function () {
-                console.log('success');
-                tasks.forEach(function (task) {
-                    console.log(task.date + ':' + task.link);
+            Promise.all(tasks).then(function (response) {
+                var links = [];
+                response.forEach(function (contestLinks) {
+                    links = links.concat(contestLinks);
                 });
-                process.exit();
+                downloadFiles(links);
+                //process.exit();
             }).catch(function (error) {
                 console.log(error);
                 process.exit();
@@ -103,15 +104,30 @@ function getFileName(contestTitle, contestDate) {
     return './downloads/' + fileName + '.zip';
 }
 
-function downloadOwnership(dkLink, contestTitle, contestDate) {
-    nightmareFactory().goto(dkLink)
+function downloadFiles(links) {
+    if (!links.length) {
+        return;
+    }
+    var link = links.pop();
+    var fileName = getFileName(link.title, link.date);
+    fs.exists(fileName, function (exists) {
+        if (!exists) {
+            downloadFile(link.href, fileName)
+                .then(downloadFiles.bind(void 0, links));
+        } else {
+            console.log(fileName + ' already exists!');
+            downloadFiles(links);
+        }
+    });
+}
+
+function downloadFile(contestLink, fileName) {
+    return nightmare.goto(contestLink)
         .wait('#export-lineups-csv')
-        .evaluate(function () {
-            var exportLink = document.querySelector('#export-lineups-csv');
-            return exportLink.href;
-        })
-        .then(function (href) {
-            console.log("href: " + href);
+        .click('#export-lineups-csv')
+        .download(fileName)
+        .then(function () {
+            console.log(fileName + ' was saved');
         });
 }
 
