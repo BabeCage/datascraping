@@ -31,7 +31,8 @@ function loginToDK(username, password) {
 }
 
 function getDailyFantasyLinks() {
-    nightmare.goto('https://rotogrinders.com/threads/category/main')
+    nightmareFactory()
+        .goto('https://rotogrinders.com/threads/category/main')
         .wait()
         .evaluate(function () {
             var topics = document.querySelectorAll('td.topic > a');
@@ -55,7 +56,6 @@ function getDailyFantasyLinks() {
                     links = links.concat(contestLinks);
                 });
                 downloadFiles(links);
-                //process.exit();
             }).catch(function (error) {
                 console.log(error);
                 process.exit();
@@ -69,7 +69,8 @@ function getDailyFantasyLinks() {
 
 function getDKLinks(mainPage, contestDate) {
     return new Promise(function (resolve) {
-        nightmare.goto(mainPage)
+        nightmareFactory()
+            .goto(mainPage)
             .wait()
             .evaluate(function () {
                 var links = document.querySelectorAll('p > a');
@@ -112,6 +113,7 @@ function downloadFiles(links) {
     var fileName = getFileName(link.title, link.date);
     fs.exists(fileName, function (exists) {
         if (!exists) {
+            console.log(fileName + ' does not exist!');
             downloadFile(link.href, fileName)
                 .then(downloadFiles.bind(void 0, links));
         } else {
@@ -122,13 +124,17 @@ function downloadFiles(links) {
 }
 
 function downloadFile(contestLink, fileName) {
-    return nightmare.goto(contestLink)
-        .wait('#export-lineups-csv')
-        .click('#export-lineups-csv')
-        .download(fileName)
-        .then(function () {
-            console.log(fileName + ' was saved');
-        });
+    return new Promise(function (resolve) {
+        nightmare.goto(contestLink)
+            .wait('#export-lineups-csv')
+            .click('#export-lineups-csv')
+            .download(fileName)
+            .then(function () {
+                resolve();
+                console.log(contestLink + ':' + fileName + ' was saved');
+            })
+            .catch(resolve);
+    });
 }
 
 function parseContestDate(contestDate) {
@@ -141,4 +147,14 @@ function nightmareFactory() {
             partition: 'nopersist'
         }
     }).useragent("Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/38.0.2125.111 Safari/537.36");
+}
+
+function sequentialPromiseFactory (promises) {
+    var sequence = Promise.resolve();
+    promises.forEach(function (promise) {
+        sequence = sequence.then(function () {
+            return promise();
+        });
+    });
+    return sequence;
 }
